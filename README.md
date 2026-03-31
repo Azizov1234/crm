@@ -1,98 +1,300 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# 🎓 CRM — O'quv Markazlari Uchun Boshqaruv Tizimi
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+> **O'quv markazlarini to'liq boshqarish uchun zamonaviy REST API backend tizimi.**  
+> O'quvchilar, o'qituvchilar, guruhlar, darslar, davomatlar va uy vazifalarini boshqaradi.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+---
 
-## Description
+## 📋 Loyiha Haqida
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+Bu loyiha o'quv markazlari (learning centers) uchun CRM (Customer Relationship Management) tizimidir. Tizim orqali admin va superadmin foydalanuvchilar o'quv markazining barcha jarayonlarini — o'quvchilardan tortib, guruhlar, darslar va uy vazifalarigacha — to'liq boshqara olishadi.
 
-## Project setup
+---
 
-```bash
-$ npm install
+## ⚙️ Texnologiyalar (Tech Stack)
+
+| Texnologiya | Versiya | Maqsad |
+|---|---|---|
+| **NestJS** | v11 | Asosiy backend framework |
+| **TypeScript** | v5.7 | Dasturlash tili |
+| **Prisma ORM** | v7 | Ma'lumotlar bazasi bilan ishlash |
+| **PostgreSQL** | — | Ma'lumotlar bazasi |
+| **JWT** | — | Autentifikatsiya (token asosida) |
+| **Bcrypt** | v6 | Parollarni xavfsiz saqlash |
+| **Swagger** | v11 | API dokumentatsiya |
+| **Nodemailer + Handlebars** | — | Email yuborish (shablon bilan) |
+| **Multer** | — | Fayl yuklash (rasm va fayllar) |
+| **Class-validator** | v0.14 | So'rovlarni tekshirish (validation) |
+| **Class-transformer** | v0.5 | Ma'lumotlarni transformatsiya qilish |
+| **@nestjs/serve-static** | v5 | Statik fayllarni serve qilish |
+| **ESLint + Prettier** | — | Kod sifatini nazorat qilish |
+
+---
+
+## 🗂️ Loyiha Tuzilmasi
+
+```
+src/
+├── app.module.ts              # Asosiy modul
+├── main.ts                    # Server ishga tushirish, Swagger sozlamalari
+│
+├── core/
+│   └── database/              # Prisma moduli va servisi
+│
+├── common/
+│   ├── decorators/            # Custom dekoratorlar (@Roles, @CurrentUser)
+│   ├── email/                 # Email yuborish moduli
+│   ├── filters/               # Exception filter (xatoliklarni ushlash)
+│   └── guards/                # JWT va Roles guard
+│
+├── modules/
+│   ├── auth/                  # Autentifikatsiya (login, register, token)
+│   ├── users/                 # Admin/Superadmin foydalanuvchilar
+│   ├── students/              # O'quvchilarni boshqarish
+│   ├── teachers/              # O'qituvchilarni boshqarish
+│   ├── courses/               # Kurslarni boshqarish
+│   ├── rooms/                 # Xonalarni boshqarish
+│   ├── groups/                # Guruhlarni boshqarish
+│   ├── lessons/               # Darslarni boshqarish
+│   ├── attendance/            # Davomat (kim keldi, kim kelmadi)
+│   └── homework/              # Uy vazifalarini boshqarish
+│
+├── templates/                 # Email shablonlari (Handlebars)
+└── uploads/                   # Yuklangan fayllar (rasmlar va boshqalar)
+
+prisma/
+├── schema.prisma              # Ma'lumotlar bazasi sxemasi
+└── migrations/                # DB migratsiyalari
 ```
 
-## Compile and run the project
+---
 
-```bash
-# development
-$ npm run start
+## 🧩 Modullar va Funksiyalar
 
-# watch mode
-$ npm run start:dev
+### 🔐 Auth (Autentifikatsiya)
+- Foydalanuvchi **ro'yxatdan o'tishi** va **tizimga kirishi**
+- **JWT token** chiqarish va tekshirish
+- **Rol asosida** ruxsat (SUPERADMIN, ADMIN, TEACHER, STUDENT)
 
-# production mode
-$ npm run start:prod
+### 👤 Users (Foydalanuvchilar)
+- SUPERADMIN va ADMIN rollidagi foydalanuvchilarni boshqarish
+- CRUD operatsiyalari (yaratish, ko'rish, yangilash, o'chirish)
+- Rasm yuklash
+
+### 🎓 Students (O'quvchilar)
+- O'quvchilarni ro'yxatdan o'tkazish
+- Status boshqaruvi: `active`, `inactive`, `freeze`, `graduated`
+- Guruhlarga qo'shish va chiqarish
+
+### 👨‍🏫 Teachers (O'qituvchilar)
+- O'qituvchilarni boshqarish
+- Guruhlarga biriktirish
+- Rasm yuklash
+
+### 📚 Courses (Kurslar)
+- Kurs yaratish va boshqarish
+- Daraja: `beginner`, `intermediate`, `advanced`
+- Narx, davomiyligi (oy va soat) ko'rsatish
+
+### 🏠 Rooms (Xonalar)
+- O'quv xonalarini ro'yxatga olish
+- Guruhlarga biriktirish
+
+### 👥 Groups (Guruhlar)
+- Guruh yaratish — kurs, o'qituvchi, xona, kunlar, boshlanish vaqti bilan
+- Guruh holati: `planned`, `active`, `completed`
+- Guruh o'quvchilarini ko'rish
+- Faol, tugatilgan va rejalashtirilgan guruhlarni filterlash
+
+### 📖 Lessons (Darslar)
+- Darslarni yaratish — mavzu va tavsif bilan
+- Guruh va o'qituvchiga biriktirish
+
+### ✅ Attendance (Davomat)
+- Har bir dars uchun davomat yuritish
+- O'quvchilar keldi/kelmadi deb belgilash
+- O'qituvchi yoki admin tomonidan kiritiladi
+
+### 📝 Homework (Uy Vazifasi)
+- O'qituvchi tomonidan uy vazifasi berish
+- Fayl biriktirish imkoniyati
+- O'quvchi tomonidan javob yuborish (`HomeworkAnswer`)
+- O'qituvchi tomonidan baho qo'yish (`HomeworkResult`)
+
+---
+
+## 🔑 Rollar va Ruxsatlar
+
+| Rol | Imkoniyatlar |
+|---|---|
+| `SUPERADMIN` | Barcha modullar ustida to'liq nazorat |
+| `ADMIN` | Barcha boshqaruv funksiyalari |
+| `TEACHER` | Darslar, davomat, uy vazifalari |
+| `STUDENT` | Uy vazifalariga javob yuborish |
+
+---
+
+## 🗄️ Ma'lumotlar Bazasi Modellari
+
+```
+Users          — Tizim foydalanuvchilari (Admin/Superadmin)
+Student        — O'quvchilar
+Teacher        — O'qituvchilar
+Course         — Kurslar
+Room           — Xonalar
+Group          — Guruhlar
+StudentGroup   — O'quvchi-Guruh bog'lanishi
+Lesson         — Darslar
+Attendance     — Davomat
+Homework       — Uy vazifalari
+HomeworkAnswer — Uy vazifasiga javoblar
+HomeworkResult — Uy vazifasi natijalari (baho)
 ```
 
-## Run tests
+---
+
+## 🚀 Loyihani Ishga Tushirish
+
+### 1. Talablar
+- **Node.js** v18+
+- **PostgreSQL** o'rnatilgan va ishlab turgan bo'lishi kerak
+- **npm** yoki **yarn**
+
+### 2. O'rnatish
 
 ```bash
-# unit tests
-$ npm run test
+# Repozitoriyani clone qiling
+git clone <repo-url>
+cd "CRM project for learning centers"
 
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+# Paketlarni o'rnating
+npm install
 ```
 
-## Deployment
+### 3. `.env` faylini sozlang
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+`.env` faylini yarating va quyidagi o'zgaruvchilarni to'ldiring:
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+```env
+DATABASE_URL="postgresql://username:password@localhost:5432/crm_db"
+JWT_SECRET="your_super_secret_key"
+PORT=3000
+
+# Email sozlamalari
+MAIL_HOST=smtp.gmail.com
+MAIL_USER=your_email@gmail.com
+MAIL_PASS=your_app_password
+```
+
+### 4. Ma'lumotlar bazasini sozlang
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+# Migratsiyalarni ishga tushiring
+npx prisma migrate dev
+
+# Prisma client yarating
+npx prisma generate
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### 5. Serverni ishga tushiring
 
-## Resources
+```bash
+# Development rejimida (auto-reload bilan)
+npm run start:dev
 
-Check out a few resources that may come in handy when working with NestJS:
+# Production rejimida
+npm run build
+npm run start:prod
+```
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+---
 
-## Support
+## 📖 API Dokumentatsiya (Swagger)
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+Server ishga tushgandan so'ng quyidagi manzilga o'ting:
 
-## Stay in touch
+```
+http://localhost:3000/swagger
+```
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+Barcha endpoint'lar, so'rov va javob strukturalari Swagger UI orqali ko'rinadi.  
+**Bearer Token** bilan autentifikatsiya qilingan so'rovlarni ham to'g'ridan-to'g'ri Swagger'dan yuborish mumkin.
 
-## License
+---
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+## 📡 Asosiy API Endpoint'lar
+
+```
+POST   /api/v1/auth/login              — Tizimga kirish
+POST   /api/v1/auth/register           — Ro'yxatdan o'tish
+
+GET    /api/v1/users                   — Foydalanuvchilar ro'yxati
+POST   /api/v1/users/create            — Yangi foydalanuvchi
+
+GET    /api/v1/students                — O'quvchilar ro'yxati
+POST   /api/v1/students/create         — Yangi o'quvchi
+
+GET    /api/v1/teachers                — O'qituvchilar ro'yxati
+POST   /api/v1/teachers/create         — Yangi o'qituvchi
+
+GET    /api/v1/courses                 — Kurslar ro'yxati
+POST   /api/v1/courses/create          — Yangi kurs
+
+GET    /api/v1/groups/all              — Barcha guruhlar
+POST   /api/v1/groups/create           — Yangi guruh
+GET    /api/v1/groups/all/completeds   — Tugatilgan guruhlar
+GET    /api/v1/groups/all/planneds     — Rejalashtirilgan guruhlar
+
+GET    /api/v1/lessons                 — Darslar ro'yxati
+POST   /api/v1/lessons/create          — Yangi dars
+
+POST   /api/v1/attendance/create       — Davomat belgilash
+
+POST   /api/v1/homework/create         — Uy vazifasi berish
+POST   /api/v1/homework/answer         — Javob yuborish
+POST   /api/v1/homework/result         — Baho qo'yish
+```
+
+---
+
+## 🛡️ Xavfsizlik
+
+- Barcha himoyalangan endpoint'lar **JWT Bearer Token** talab qiladi
+- Parollar **bcrypt** bilan hash qilinadi
+- **Rol asosida kirish nazorati** (RBAC) mavjud
+- So'rovlar **class-validator** orqali tekshiriladi (whitelist = true)
+
+---
+
+## 📁 Fayl Yuklash
+
+- Fayllar `src/uploads/` papkasiga saqlanadi
+- Statik fayllar `/files/` endpoint'i orqali mavjud:
+  ```
+  GET /files/image.jpg
+  ```
+
+---
+
+## 🧪 Test
+
+```bash
+# Unit testlar
+npm run test
+
+# Test coverage
+npm run test:cov
+
+# E2E testlar
+npm run test:e2e
+```
+
+---
+
+## 👨‍💻 Muallif
+
+Bu loyiha **o'quv maqsadida** yaratilgan — NestJS, Prisma, PostgreSQL va JWT bilan to'liq backend tizim qurish amaliyoti uchun.
+
+---
+
+> **Port:** `3000` (standart) | **API prefix:** `/api/v1` | **Swagger:** `/swagger`
