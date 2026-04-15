@@ -1,17 +1,31 @@
-import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger"
-import { IsBoolean, IsNumber, IsOptional } from "class-validator"
+﻿import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { AttendanceStatus } from '@prisma/client';
+import { IsDateString, IsEnum, IsOptional, IsString } from 'class-validator';
 
 export class CreateAttendanceDto {
+  @ApiProperty()
+  @IsString()
+  groupId: string;
 
-    @ApiProperty()
-    @IsNumber()
-    student_id: number
+  @ApiProperty()
+  @IsString()
+  studentId: string;
 
-    @ApiProperty()
-    @IsNumber()
-    lesson_id: number
+  @ApiProperty({ example: '2026-04-15' })
+  @IsDateString()
+  date: string;
 
-    @ApiProperty()
-    @IsBoolean()
-    isPresent: boolean
+  @ApiProperty({ enum: AttendanceStatus })
+  @IsEnum(AttendanceStatus)
+  attendanceStatus: AttendanceStatus;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  note?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  branchId?: string;
 }

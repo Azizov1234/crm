@@ -6,246 +6,729 @@ datasource db {
   provider = "postgresql"
 }
 
-enum CourseLevel {
-  beginner
-  intermediate
-  advanced
-}
-
-enum Role {
-  SUPERADMIN
+enum UserRole {
+  SUPER_ADMIN
   ADMIN
   TEACHER
   STUDENT
+  PARENT
+  STAFF
 }
 
 enum Status {
-  active
-  inactive
-  freeze
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+  DELETED
 }
 
-enum StudentStatus {
-  active
-  inactive
-  freeze
-  graduated
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
 }
 
-enum WeekDay {
-  MONDAY
-  TUESDAY
-  WEDNESDAY
-  THURSDAY
-  FRIDAY
-  SATURDAY
-  SUNDAY
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
 }
 
-enum GroupStatus {
-  planned
-  active
-  completed
+enum PaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
 }
 
-model Users {
-  id              Int              @id @default(autoincrement())
-  first_name      String
-  last_name       String
-  password        String
-  role            Role
-  phone           String           @unique
-  email           String           @unique
-  address         String
-  photo           String?
-  status          Status           @default(active)
-  created_at      DateTime         @default(now())
-  updated_at      DateTime         @updatedAt
-  lessons         Lesson[]
-  attendances     Attendance[]
-  homework        Homework[]
-  homeworkResults HomeworkResult[]
+enum SmsStatus {
+  PENDING
+  SENT
+  FAILED
 }
 
-model Student {
-  id              Int              @id @default(autoincrement())
-  first_name      String
-  last_name       String
-  password        String
-  phone           String           @unique
-  email           String           @unique
-  birth_date      DateTime
-  address         String
-  photo           String?
-  status          StudentStatus    @default(active)
-  created_at      DateTime         @default(now())
-  update_at       DateTime         @updatedAt
-  studentGroups   StudentGroup[]
-  attendance      Attendance[]
-  homeworkAnswers HomeworkAnswer[]
+enum ActionType {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  PAYMENT
+  ATTENDANCE_MARK
+  ROLE_UPDATE
+  ASSIGN
+  UNASSIGN
 }
 
-model Teacher {
-  id              Int              @id @default(autoincrement())
-  first_name      String
-  last_name       String
-  password        String
-  phone           String           @unique
-  email           String           @unique
-  address         String
-  photo           String?
-  status          Status           @default(active)
-  created_at      DateTime         @default(now())
-  update_at       DateTime         @updatedAt
-  groups          Group[]
-  lessons         Lesson[]
-  attendances     Attendance[]
-  homework        Homework[]
-  homeworkResults HomeworkResult[]
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+model Organization {
+  id        String    @id @default(cuid())
+  name      String
+  code      String    @unique
+  phone     String?
+  email     String?
+  logoUrl   String?
+  website   String?
+  status    Status    @default(ACTIVE)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  branches         Branch[]
+  users            User[]
+  adminProfiles    AdminProfile[]
+  teacherProfiles  TeacherProfile[]
+  studentProfiles  StudentProfile[]
+  parentProfiles   ParentProfile[]
+  staffProfiles    StaffProfile[]
+  courses          Course[]
+  rooms            Room[]
+  groups           Group[]
+  timetables       Timetable[]
+  attendances      Attendance[]
+  staffAttendances StaffAttendance[]
+  ratings          Rating[]
+  payments         Payment[]
+  paymentHistories PaymentHistory[]
+  expenses         Expense[]
+  settings         OrganizationSetting?
+  tariffPlans      TariffPlan[]
+  subscriptions    Subscription[]
+  smsLogs          SmsLog[]
+  smsTemplates     SmsTemplate[]
+  actionLogs       ActionLog[]
+  errorLogs        ErrorLog[]
+
+  @@index([status])
+}
+
+model OrganizationSetting {
+  id             String    @id @default(cuid())
+  organizationId String    @unique
+  timezone       String    @default("Asia/Tashkent")
+  locale         String    @default("uz-UZ")
+  currency       String    @default("UZS")
+  primaryColor   String?
+  status         Status    @default(ACTIVE)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([status])
+}
+
+model Branch {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  code           String
+  phone          String?
+  email          String?
+  address        String?
+  logoUrl        String?
+  status         Status    @default(ACTIVE)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  users           User[]
+  adminProfiles   AdminProfile[]
+  teacherProfiles TeacherProfile[]
+  studentProfiles StudentProfile[]
+  parentProfiles  ParentProfile[]
+  staffProfiles   StaffProfile[]
+
+  courses          Course[]
+  rooms            Room[]
+  groups           Group[]
+  timetables       Timetable[]
+  attendances      Attendance[]
+  staffAttendances StaffAttendance[]
+  ratings          Rating[]
+  payments         Payment[]
+  paymentHistories PaymentHistory[]
+  expenses         Expense[]
+  smsLogs          SmsLog[]
+  smsTemplates     SmsTemplate[]
+  actionLogs       ActionLog[]
+  errorLogs        ErrorLog[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status])
+}
+
+model User {
+  id             String    @id @default(cuid())
+  organizationId String
+  branchId       String?
+  role           UserRole
+  firstName      String
+  lastName       String
+  phone          String?
+  email          String?   @unique
+  passwordHash   String
+  avatarUrl      String?
+  status         Status    @default(ACTIVE)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  branch       Branch?      @relation(fields: [branchId], references: [id])
+
+  adminProfile   AdminProfile?
+  teacherProfile TeacherProfile?
+  studentProfile StudentProfile?
+  parentProfile  ParentProfile?
+  staffProfile   StaffProfile?
+
+  markedAttendances        Attendance[]      @relation("AttendanceMarker")
+  markedStaffAttendances   StaffAttendance[] @relation("StaffAttendanceMarker")
+  receivedPaymentHistories PaymentHistory[]  @relation("PaymentHistoryReceiver")
+  smsLogs                  SmsLog[]          @relation("SmsSender")
+  actionLogs               ActionLog[]
+  errorLogs                ErrorLog[]
+
+  @@index([organizationId, branchId, role, status])
+}
+
+model AdminProfile {
+  id             String    @id @default(cuid())
+  organizationId String
+  branchId       String?
+  userId         String    @unique
+  notes          String?
+  status         Status    @default(ACTIVE)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  branch       Branch?      @relation(fields: [branchId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@index([organizationId, branchId, status])
+}
+
+model TeacherProfile {
+  id             String    @id @default(cuid())
+  organizationId String
+  branchId       String
+  userId         String    @unique
+  specialty      String?
+  salary         Decimal?  @db.Decimal(12, 2)
+  hiredAt        DateTime?
+  bio            String?
+  status         Status    @default(ACTIVE)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  branch       Branch       @relation(fields: [branchId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  groups       Group[]
+  ratingsGiven Rating[] @relation("RatingTeacher")
+
+  @@index([organizationId, branchId, status])
+}
+
+model StudentProfile {
+  id             String    @id @default(cuid())
+  organizationId String
+  branchId       String
+  userId         String    @unique
+  studentNo      String?
+  birthDate      DateTime?
+  gender         Gender?
+  joinedAt       DateTime?
+  address        String?
+  status         Status    @default(ACTIVE)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  branch       Branch       @relation(fields: [branchId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  parentLinks ParentStudent[]
+  groupLinks  GroupStudent[]
+  attendances Attendance[]
+  ratings     Rating[]
+  payments    Payment[]
+
+  @@unique([organizationId, studentNo])
+  @@index([organizationId, branchId, status])
+}
+
+model ParentProfile {
+  id             String    @id @default(cuid())
+  organizationId String
+  branchId       String
+  userId         String    @unique
+  occupation     String?
+  address        String?
+  status         Status    @default(ACTIVE)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  branch       Branch       @relation(fields: [branchId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  studentLinks ParentStudent[]
+
+  @@index([organizationId, branchId, status])
+}
+
+model StaffProfile {
+  id             String    @id @default(cuid())
+  organizationId String
+  branchId       String
+  userId         String    @unique
+  position       String?
+  salary         Decimal?  @db.Decimal(12, 2)
+  hiredAt        DateTime?
+  status         Status    @default(ACTIVE)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  branch       Branch       @relation(fields: [branchId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  attendances StaffAttendance[]
+
+  @@index([organizationId, branchId, status])
+}
+
+model ParentStudent {
+  id           String    @id @default(cuid())
+  parentId     String
+  studentId    String
+  relationType String?
+  status       Status    @default(ACTIVE)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  parent  ParentProfile  @relation(fields: [parentId], references: [id])
+  student StudentProfile @relation(fields: [studentId], references: [id])
+
+  @@unique([parentId, studentId])
+  @@index([status])
+}
+
+model GroupStudent {
+  id        String    @id @default(cuid())
+  groupId   String
+  studentId String
+  joinedAt  DateTime  @default(now())
+  status    Status    @default(ACTIVE)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  group   Group          @relation(fields: [groupId], references: [id])
+  student StudentProfile @relation(fields: [studentId], references: [id])
+
+  @@unique([groupId, studentId])
+  @@index([status])
 }
 
 model Course {
-  id             Int         @id @default(autoincrement())
-  name           String      @unique
+  id             String    @id @default(cuid())
+  organizationId String
+  branchId       String
+  name           String
+  code           String?
   description    String?
-  price          Decimal
-  duration_month Int
-  duration_hours Int
-  level          CourseLevel
-  status         Status      @default(active)
-  created_at     DateTime    @default(now())
-  update_at      DateTime    @updatedAt
+  price          Decimal   @db.Decimal(12, 2)
+  durationMonth  Int?
+  coverUrl       String?
+  status         Status    @default(ACTIVE)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  branch       Branch       @relation(fields: [branchId], references: [id])
 
   groups Group[]
+
+  @@index([organizationId, branchId, status])
 }
 
 model Room {
-  id         Int      @id @default(autoincrement())
-  name       String   @unique
-  status     Status   @default(active)
-  created_at DateTime @default(now())
-  update_at  DateTime @updatedAt
+  id             String    @id @default(cuid())
+  organizationId String
+  branchId       String
+  name           String
+  capacity       Int
+  floor          String?
+  status         Status    @default(ACTIVE)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  branch       Branch       @relation(fields: [branchId], references: [id])
+
   groups     Group[]
+  timetables Timetable[]
+
+  @@unique([branchId, name])
+  @@index([organizationId, branchId, status])
 }
 
 model Group {
-  id          Int         @id @default(autoincrement())
-  name        String      @unique
-  description String?
-  course_id   Int
-  teacher_id  Int
-  room_id     Int
-  start_date  DateTime
-  week_day    WeekDay[]
-  start_time  String
-  max_student Int
-  status      GroupStatus @default(active)
-  created_at  DateTime    @default(now())
-  update_at   DateTime    @updatedAt
+  id             String    @id @default(cuid())
+  organizationId String
+  branchId       String
+  courseId       String
+  teacherId      String?
+  roomId         String?
+  name           String
+  code           String?
+  capacity       Int
+  price          Decimal?  @db.Decimal(12, 2)
+  startDate      DateTime?
+  endDate        DateTime?
+  status         Status    @default(ACTIVE)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
 
-  courses       Course         @relation(fields: [course_id], references: [id])
-  teachers      Teacher        @relation(fields: [teacher_id], references: [id])
-  rooms         Room           @relation(fields: [room_id], references: [id])
-  studentGroups StudentGroup[]
-  lesson        Lesson?
-  homework      Homework[]
-}
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  branch       Branch          @relation(fields: [branchId], references: [id])
+  course       Course          @relation(fields: [courseId], references: [id])
+  teacher      TeacherProfile? @relation(fields: [teacherId], references: [id])
+  room         Room?           @relation(fields: [roomId], references: [id])
 
-model StudentGroup {
-  id         Int      @id @default(autoincrement())
-  student_id Int
-  group_id   Int
-  status     Status   @default(active)
-  created_at DateTime @default(now())
-  update_at  DateTime @updatedAt
-
-  students Student @relation(fields: [student_id], references: [id])
-  groups   Group   @relation(fields: [group_id], references: [id])
-
-  @@unique([student_id, group_id])
-}
-
-model Lesson {
-  id          Int      @id @default(autoincrement())
-  group_id    Int      @unique
-  teacher_id  Int?
-  user_id     Int?
-  topic       String   @unique
-  description String?
-  status      Status   @default(active)
-  created_at  DateTime @default(now())
-  updated_at  DateTime @default(now())
-
-  groups      Group        @relation(fields: [group_id], references: [id])
-  users       Users?       @relation(fields: [user_id], references: [id])
-  teachers    Teacher?     @relation(fields: [teacher_id], references: [id])
+  students    GroupStudent[]
+  timetables  Timetable[]
   attendances Attendance[]
-  homework    Homework[]
+  ratings     Rating[]
+  payments    Payment[]
+
+  @@index([organizationId, branchId, status])
+}
+
+model Timetable {
+  id             String    @id @default(cuid())
+  organizationId String
+  branchId       String
+  groupId        String
+  roomId         String
+  dayOfWeek      Int
+  startTime      String
+  endTime        String
+  validFrom      DateTime?
+  validTo        DateTime?
+  status         Status    @default(ACTIVE)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  branch       Branch       @relation(fields: [branchId], references: [id])
+  group        Group        @relation(fields: [groupId], references: [id])
+  room         Room         @relation(fields: [roomId], references: [id])
+
+  @@index([organizationId, branchId, dayOfWeek, status])
 }
 
 model Attendance {
-  id         Int      @id @default(autoincrement())
-  teacher_id Int?
-  user_id    Int?
-  student_id Int
-  lesson_id  Int
-  isPresent  Boolean
-  created_at DateTime @default(now())
-  updated_at DateTime @default(now())
+  id               String           @id @default(cuid())
+  organizationId   String
+  branchId         String
+  groupId          String
+  studentId        String
+  date             DateTime
+  attendanceStatus AttendanceStatus
+  markedById       String?
+  note             String?
+  status           Status           @default(ACTIVE)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  deletedAt        DateTime?
 
-  users    Users?   @relation(fields: [user_id], references: [id])
-  teachers Teacher? @relation(fields: [teacher_id], references: [id])
-  lesson   Lesson   @relation(fields: [lesson_id], references: [id])
-  students Student  @relation(fields: [student_id], references: [id])
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  branch       Branch         @relation(fields: [branchId], references: [id])
+  group        Group          @relation(fields: [groupId], references: [id])
+  student      StudentProfile @relation(fields: [studentId], references: [id])
+  markedBy     User?          @relation("AttendanceMarker", fields: [markedById], references: [id])
+
+  @@unique([studentId, groupId, date])
+  @@index([organizationId, branchId, date, status])
 }
 
-model Homework {
-  id         Int     @id @default(autoincrement())
-  lesson_id  Int
-  teacher_id Int?
-  user_id    Int?
-  group_id   Int
-  title      String
-  file       String?
+model StaffAttendance {
+  id               String           @id @default(cuid())
+  organizationId   String
+  branchId         String
+  staffId          String
+  date             DateTime
+  attendanceStatus AttendanceStatus
+  checkIn          DateTime?
+  checkOut         DateTime?
+  markedById       String?
+  note             String?
+  status           Status           @default(ACTIVE)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  deletedAt        DateTime?
 
-  created_at DateTime @default(now())
-  updated_at DateTime @default(now())
+  organization Organization @relation(fields: [organizationId], references: [id])
+  branch       Branch       @relation(fields: [branchId], references: [id])
+  staff        StaffProfile @relation(fields: [staffId], references: [id])
+  markedBy     User?        @relation("StaffAttendanceMarker", fields: [markedById], references: [id])
 
-  users           Users?           @relation(fields: [user_id], references: [id])
-  teachers        Teacher?         @relation(fields: [teacher_id], references: [id])
-  lesson          Lesson           @relation(fields: [lesson_id], references: [id])
-  groups          Group            @relation(fields: [group_id], references: [id])
-  homeworkAnswers HomeworkAnswer[]
+  @@unique([staffId, date])
+  @@index([organizationId, branchId, date, status])
 }
 
-model HomeworkAnswer {
-  id          Int     @id @default(autoincrement())
-  student_id  Int
-  homework_id Int
-  title       String
-  file        String?
+model Rating {
+  id             String    @id @default(cuid())
+  organizationId String
+  branchId       String
+  groupId        String
+  studentId      String
+  teacherId      String?
+  score          Decimal   @db.Decimal(5, 2)
+  comment        String?
+  ratedAt        DateTime  @default(now())
+  status         Status    @default(ACTIVE)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
 
-  created_at DateTime @default(now())
-  updated_at DateTime @default(now())
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  branch       Branch          @relation(fields: [branchId], references: [id])
+  group        Group           @relation(fields: [groupId], references: [id])
+  student      StudentProfile  @relation(fields: [studentId], references: [id])
+  teacher      TeacherProfile? @relation("RatingTeacher", fields: [teacherId], references: [id])
 
-  students        Student          @relation(fields: [student_id], references: [id])
-  homework        Homework         @relation(fields: [homework_id], references: [id])
-  homeworkResults HomeworkResult[]
+  @@index([organizationId, branchId, ratedAt, status])
 }
 
-model HomeworkResult {
-  id                 Int      @id @default(autoincrement())
-  homework_answer_id Int
-  grade              Int
-  teacher_id         Int?
-  user_id            Int?
-  title              String
-  status             Boolean
-  created_at         DateTime @default(now())
-  updated_at         DateTime @default(now())
+model Payment {
+  id             String        @id @default(cuid())
+  organizationId String
+  branchId       String
+  studentId      String
+  groupId        String?
+  month          Int
+  year           Int
+  amount         Decimal       @db.Decimal(12, 2)
+  paidAmount     Decimal       @default(0) @db.Decimal(12, 2)
+  paymentStatus  PaymentStatus @default(PENDING)
+  dueDate        DateTime?
+  note           String?
+  fileUrl        String?
+  status         Status        @default(ACTIVE)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?
 
-  users    Users?   @relation(fields: [user_id], references: [id])
-  teachers Teacher? @relation(fields: [teacher_id], references: [id])
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  branch       Branch         @relation(fields: [branchId], references: [id])
+  student      StudentProfile @relation(fields: [studentId], references: [id])
+  group        Group?         @relation(fields: [groupId], references: [id])
 
-  homeworkAnswer HomeworkAnswer @relation(fields: [homework_answer_id], references: [id])
+  histories PaymentHistory[]
+
+  @@index([organizationId, branchId, paymentStatus, status])
+}
+
+model PaymentHistory {
+  id             String        @id @default(cuid())
+  organizationId String
+  branchId       String
+  paymentId      String
+  amount         Decimal       @db.Decimal(12, 2)
+  paymentStatus  PaymentStatus @default(PAID)
+  method         String
+  referenceNo    String?
+  receivedById   String?
+  note           String?
+  paidAt         DateTime      @default(now())
+  status         Status        @default(ACTIVE)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  branch       Branch       @relation(fields: [branchId], references: [id])
+  payment      Payment      @relation(fields: [paymentId], references: [id])
+  receivedBy   User?        @relation("PaymentHistoryReceiver", fields: [receivedById], references: [id])
+
+  @@index([organizationId, branchId, paidAt, status])
+}
+
+model Expense {
+  id             String    @id @default(cuid())
+  organizationId String
+  branchId       String
+  title          String
+  category       String
+  amount         Decimal   @db.Decimal(12, 2)
+  expenseDate    DateTime
+  paidBy         String?
+  note           String?
+  fileUrl        String?
+  status         Status    @default(ACTIVE)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  branch       Branch       @relation(fields: [branchId], references: [id])
+
+  @@index([organizationId, branchId, expenseDate, status])
+}
+
+model TariffPlan {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  price          Decimal   @db.Decimal(12, 2)
+  durationDays   Int
+  studentLimit   Int
+  branchLimit    Int
+  features       Json?
+  status         Status    @default(ACTIVE)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization  Organization   @relation(fields: [organizationId], references: [id])
+  subscriptions Subscription[]
+
+  @@index([organizationId, status])
+}
+
+model Subscription {
+  id                 String             @id @default(cuid())
+  organizationId     String
+  tariffPlanId       String
+  startDate          DateTime
+  endDate            DateTime
+  subscriptionStatus SubscriptionStatus @default(ACTIVE)
+  autoRenew          Boolean            @default(false)
+  status             Status             @default(ACTIVE)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  deletedAt          DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  tariffPlan   TariffPlan   @relation(fields: [tariffPlanId], references: [id])
+
+  @@index([organizationId, subscriptionStatus, status])
+}
+
+model SmsLog {
+  id             String    @id @default(cuid())
+  organizationId String
+  branchId       String
+  senderId       String?
+  recipientPhone String
+  message        String
+  provider       String?
+  externalId     String?
+  smsStatus      SmsStatus @default(PENDING)
+  errorMessage   String?
+  status         Status    @default(ACTIVE)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  branch       Branch       @relation(fields: [branchId], references: [id])
+  sender       User?        @relation("SmsSender", fields: [senderId], references: [id])
+
+  @@index([organizationId, branchId, smsStatus, status])
+}
+
+model SmsTemplate {
+  id             String    @id @default(cuid())
+  organizationId String
+  branchId       String
+  name           String
+  body           String
+  status         Status    @default(ACTIVE)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  branch       Branch       @relation(fields: [branchId], references: [id])
+
+  @@index([organizationId, branchId, status])
+}
+
+model ActionLog {
+  id             String     @id @default(cuid())
+  organizationId String
+  userId         String?
+  branchId       String?
+  actionType     ActionType
+  entityType     String
+  entityId       String?
+  description    String
+  oldData        Json?
+  newData        Json?
+  ipAddress      String?
+  userAgent      String?
+  status         Status     @default(ACTIVE)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User?        @relation(fields: [userId], references: [id])
+  branch       Branch?      @relation(fields: [branchId], references: [id])
+
+  @@index([organizationId, branchId, actionType, createdAt, status])
+}
+
+model ErrorLog {
+  id             String    @id @default(cuid())
+  organizationId String
+  userId         String?
+  branchId       String?
+  message        String
+  stack          String?
+  path           String?
+  method         String?
+  statusCode     Int?
+  ipAddress      String?
+  userAgent      String?
+  meta           Json?
+  status         Status    @default(ACTIVE)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User?        @relation(fields: [userId], references: [id])
+  branch       Branch?      @relation(fields: [branchId], references: [id])
+
+  @@index([organizationId, branchId, statusCode, createdAt, status])
 }

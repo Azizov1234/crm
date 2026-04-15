@@ -1,0 +1,148 @@
+﻿# Tasks README
+
+## Maqsad
+`academy_frontend_codex_prompt.md` bo'yicha frontendni screenshotlarga maksimal yaqinlashtirib, bosqichma-bosqich yakunlash.
+
+## Hozirgacha Qilingan Ishlar
+- [x] Global design tokenlar yangilandi (`light admin look`, `blue-purple gradient`, soft shadow/radius).
+- [x] Asosiy `AppShell` komponentlari yangilandi:
+  - sidebar
+  - top header
+  - content container/layout
+- [x] Reusable UI primitives qo'shildi:
+  - `PageHero`
+  - `SearchToolbar`
+  - `EmptyState`
+  - `ModalShell`
+  - `StepSection`
+  - `GradientButton`
+- [x] Core sahifalar qayta yozildi:
+  - `/dashboard`
+  - `/teachers`
+  - `/students`
+  - `/groups`
+  - `/payments`
+  - `/settings`
+  - `/attendance`
+- [x] `x-branch-id` header support qo'shildi (`client.ts` + branch storage).
+- [x] `src/services/*.service.ts` struktura boshlandi (promptdagi nomlashga mos).
+- [x] Build tekshirildi (`npm run build` successful).
+- [x] Generic list modul yangi dizaynga o'tkazildi:
+  - `ApiListPage` (`PageHero`, `SearchToolbar`, `EmptyState` asosida)
+- [x] Yangi custom sahifalar qo'shildi:
+  - `/staff-attendance` (summary + filter + table)
+  - `/tariffs` (current subscription + create form + plans)
+  - `/finance` (summary + expense create + cashflow)
+  - `/sms` (single send + bulk send + templates + logs)
+- [x] Modalga yo'naltirilgan custom CRUD sahifalar qo'shildi:
+  - `/parents` (parent info + student biriktirish)
+  - `/admins` (admin create + existing user attach)
+  - `/rooms` (xona + sig'im create)
+  - `/courses` (kurs + tavsif + narx create)
+- [x] `coursesApi.list` kengaytirildi (code/description/price/duration/status/createdAt).
+- [x] Fake mappinglar tozalandi:
+  - `customersApi`, `leadsApi`, `dealsApi`, `tasksApi` servis aliaslari olib tashlandi
+  - `/customers`, `/leads`, `/deals`, `/tasks` route'lari real modullarga redirect qilindi
+- [x] Backend ulanish konfiguratsiyasi to'g'rilandi:
+  - `API_BASE_URL` auto-detect rejimiga o'tdi (`9090`, `4545`, `3000` fallback)
+  - `frontend/.env.example` qo'shildi (`NEXT_PUBLIC_API_BASE_URL`)
+- [x] Login sahifasi qayta dizayn qilindi:
+  - ixcham card layout
+  - backend online/offline status pill
+  - API manzilini ko'rsatish
+- [x] Backend bilan jonli tekshiruv bajarildi (2026-04-15):
+  - `POST /auth/login` success
+  - `GET /auth/me` success
+  - `GET /dashboard/overview` success
+  - asosiy barcha list endpointlar smoke-check: `SMOKE_OK`
+- [x] Backend startup port logikasi yangilandi:
+  - `.env` ichidagi `PORT` qiymatini birinchi o'rinda oladi
+  - `main.ts`da port log chiqadi
+- [x] Frontend tekshirildi:
+  - `npm run lint` (faqat warninglar, error yo'q)
+  - `npm run build` (successful)
+  - Oxirgi tekshiruv: 2026-04-15 (`12 warnings`, `0 errors`)
+- [x] Cloudinary upload real flowga ulandi:
+  - `AvatarUploadField` reusable komponenti qo'shildi
+  - create formalar Cloudinary upload bilan bog'landi: `/users`, `/teachers`, `/students`, `/parents`, `/admins`
+  - `avatarUrl` payloadga yuborilishi yoqildi
+- [x] Backend upload validatsiyasi kuchaytirildi:
+  - `POST /settings/logo` endpointga `file` null-check qo'shildi
+  - logo upload uchun `MAX_IMAGE_SIZE` limiti qo'llandi
+  - Cloudinary service env-check qo'shildi (`CLOUDINARY_*` yo'q bo'lsa aniq xabar qaytaradi)
+- [x] API auto-detect tezlashtirildi:
+  - frontend `client.ts`da backend candidate probing parallel rejimga o'tdi
+  - birinchi requestdagi kutish vaqti kamaytirildi
+- [x] Cloudinary env tekshirildi (2026-04-15):
+  - `.env` ichida `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` topilmadi
+- [x] `branchId majburiy` oqimi barqaror qilindi:
+  - `SuperAdminBootstrapService` ichida organization uchun default branch auto-create qo'shildi (bir marta yaratiladi)
+  - `courses` va `payments` create payloadlarida aktiv branchId yuborilishi qo'shildi
+- [x] Error loglar UI qayta ishlanib chiroyli diagnostika panel qilindi:
+  - `/error-logs` sahifasida status/method filter, jadval, va detail modal qo'shildi
+- [x] Notification oqimi qo'shildi (real backend endpointlar):
+  - `POST /sms/notify/roles` (role bo'yicha yuborish)
+  - `POST /sms/notify/due-payments` (to'lov muddati yaqinlashganlar)
+  - `POST /sms/notify/staff-salary` (xodim oylik notification)
+  - sender role cheklovi: `SUPER_ADMIN`, `ADMIN`, `TEACHER`
+- [x] Finance -> staff salary auto-notification qo'shildi:
+  - `category` ichida `salary/oylik/maosh` bo'lsa va `paidBy` staff user id bo'lsa avtomatik SMS log yaratiladi
+- [x] Payments create flow yaxshilandi:
+  - student tanlanganda studentga biriktirilgan guruhlar bo'yicha real filter qo'shildi
+  - `dueDate` input qo'shildi (reminder oqimi uchun)
+- [x] SMS frontend sahifasi kengaytirildi:
+  - role notification forma
+  - due payment reminder trigger forma
+  - staff salary notification forma
+- [x] Theme (dark/light) toggle yoqildi:
+  - `next-themes` provider ulab qo'yildi
+  - top-nav da dark/light tugmasi qo'shildi
+  - asosiy `panel/input/page` utility classlar uchun dark variantlar qo'shildi
+- [x] Search icon/text overlap muammosi yumshatildi:
+  - `SearchToolbar` input padding oshirildi (`pl-10`)
+  - toolbar actions wrap qo'llab-quvvatlashi qo'shildi
+- [x] Real API smoke-check (2026-04-15) qayta bajarildi:
+  - branch/course/student/group/payment/expense real yozuvlar yaratildi
+  - due-payment reminder endpoint ishladi (`sentCount=1`)
+  - staff-salary notification endpoint ishladi (`sentCount=1`)
+  - finance salary auto-notification ishladi (`provider=staff-salary-auto`)
+- [x] Real API smoke-check (2026-04-15, ikkinchi bosqich) bajarildi:
+  - `ROLE_NOTIFY_STAFF_SENT=2` (role broadcast real ishladi)
+  - `DUE_NOTIFY_SENT=2` (yaqinlashayotgan to'lov reminderlari)
+  - `STAFF_NOTIFY_SENT=1` (manual staff salary notify)
+  - SMS log providerlarida `staff-salary-auto` borligi tasdiqlandi
+- [x] Prisma schema sync tekshirildi:
+  - `npx prisma db push` -> `The database is already in sync`
+- [x] Build/Lint qayta tekshirildi (2026-04-15):
+  - backend `npm run build` successful
+  - frontend `npm run build` successful
+  - frontend `npm run lint` -> error yo'q, warninglar bor
+
+## Hozir Bajarilayotgan Bosqich
+- [x] Qolgan route'lar uchun umumiy list sahifani (`ApiListPage`) yangi dizayn tizimiga o'tkazish.
+- [ ] Qolgan route'larni ham yangi dizayn tizimiga to'liq o'tkazish:
+  - `/timetable`
+  - `/ratings`
+  - `/branches`
+  - `/action-logs`
+  - `/error-logs` (done)
+
+## Qolgan Ishlar (Pending)
+- [ ] Qolgan barcha route'lar uchun visual style birxillashtirish (hero, toolbar, empty state, cards).
+- [x] `parents`, `admins`, `rooms`, `courses` uchun screenshotga yaqin create modal formlari yozish.
+- [x] `tariffs`, `sms`, `finance` sahifalarini list-skeletondan funksional bloklarga chiqarish.
+- [ ] `action-logs` uchun detail drawer qo'shish.
+- [x] `staff-attendance` sahifasini `attendance` uslubiga yaqinlashtirish (summary/filter/table).
+- [ ] Hook warnings (`react-hooks/exhaustive-deps`)ni tozalash.
+- [ ] `settings` sahifasida `img` o'rniga `next/image` ishlatish.
+- [ ] Keyingi navbat: `/timetable`, `/branches`, `/ratings`ni custom functional pagega chiqarish.
+- [ ] Root `.env` ga Cloudinary kalitlarini qo'shish va tekshirish:
+  - `CLOUDINARY_CLOUD_NAME`
+  - `CLOUDINARY_API_KEY`
+  - `CLOUDINARY_API_SECRET`
+- [ ] Frontend local envni qat'iy ulash (`frontend/.env.local`):
+  - `NEXT_PUBLIC_API_BASE_URL=http://localhost:9090/api/v1`
+
+## Eslatma
+Har bir keyingi bosqich yakunida shu fayl yangilanadi: nima bajarildi va nima qolgani yozib boriladi.
+

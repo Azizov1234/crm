@@ -1,58 +1,123 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+﻿import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { ActionType, Status } from '@prisma/client';
+import type { Request } from 'express';
+import { BcryptUtilsService } from '../../common/utils/bcrypt.service';
+import { IJwtPayload, JwtUtilsService } from '../../common/utils/jwt.service';
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
+import { AuditLogService } from '../../common/services/audit-log.service';
+import { PrismaService } from '../../core/prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
-import { PrismaService } from 'src/core/database/prisma.service';
-import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from "bcrypt"
-import { Role } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
-    constructor(private readonly prisma:PrismaService,private readonly jwt:JwtService){}
-    async loginUsers(payload:LoginDto){
-        const existUser= await this.prisma.users.findUnique({
-            where:{
-                phone:payload.phone
-            }
-        }) 
-        if(!existUser) throw new UnauthorizedException("Invalid phone or password")
-        const isMatch = await bcrypt.compare(payload.password,existUser.password)
-        if(!isMatch) throw new UnauthorizedException("Invalid phone or password")
-        return {
-            success:true,
-            message:"Your logged",
-            accesToken:this.jwt.sign({id:existUser.id,email:existUser.email,phone:existUser.phone,role:existUser.role})
-        }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly bcryptUtilsService: BcryptUtilsService,
+    private readonly jwtUtilsService: JwtUtilsService,
+    private readonly auditLogService: AuditLogService,
+  ) {}
+
+  async login(dto: LoginDto, request?: Request) {
+    const identifier = dto.identifier.trim();
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        OR: [{ email: identifier }, { phone: identifier }],
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Login yoki parol notogri');
     }
 
-    async loginTeachers(payload:LoginDto){
-         const existUser= await this.prisma.teacher.findUnique({
-            where:{
-                phone:payload.phone
-            }
-        }) 
-        if(!existUser) throw new UnauthorizedException("Invalid phone or password")
-        const isMatch = await bcrypt.compare(payload.password,existUser.password)
-        if(!isMatch) throw new UnauthorizedException("Invalid phone or password")
-        return {
-            success:true,
-            message:"Your logged",
-            accesToken:this.jwt.sign({id:existUser.id,email:existUser.email,phone:existUser.phone,role:Role.TEACHER})
-        }
+    if (user.status !== Status.ACTIVE) {
+      throw new BadRequestException('Foydalanuvchi faol emas');
     }
 
-    async loginStudents(payload:LoginDto){
-        const existUser= await this.prisma.student.findUnique({
-            where:{
-                phone:payload.phone
-            }
-        }) 
-        if(!existUser) throw new UnauthorizedException("Invalid phone or password")
-        const isMatch = await bcrypt.compare(payload.password,existUser.password)
-        if(!isMatch) throw new UnauthorizedException("Invalid phone or password")
-        return {
-            success:true,
-            message:"Your logged",
-            accesToken:this.jwt.sign({id:existUser.id,email:existUser.email,phone:existUser.phone,role:Role.STUDENT})
-        }
+    const validPassword = await this.bcryptUtilsService.comparePasswords(
+      dto.password,
+      user.passwordHash,
+    );
+
+    if (!validPassword) {
+      throw new UnauthorizedException('Login yoki parol notogri');
     }
+
+    const payload: IJwtPayload = {
+      sub: user.id,
+      organizationId: user.organizationId,
+      branchId: user.branchId,
+      role: user.role,
+    };
+
+    const accessToken = this.jwtUtilsService.generateToken(payload);
+
+    await this.auditLogService.logAction({
+      organizationId: user.organizationId,
+      userId: user.id,
+      branchId: user.branchId,
+      actionType: ActionType.LOGIN,
+      entityType: 'Auth',
+      entityId: user.id,
+      description: 'Foydalanuvchi tizimga kirdi',
+      ipAddress: request?.ip,
+      userAgent: request?.headers['user-agent'] ?? null,
+    });
+
+    return {
+      accessToken,
+      user: {
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        branchId: user.branchId,
+        organizationId: user.organizationId,
+      },
+    };
+  }
+
+  async logout(user: RequestUser, request?: Request) {
+    await this.auditLogService.logAction({
+      organizationId: user.organizationId,
+      userId: user.id,
+      branchId: user.branchId,
+      actionType: ActionType.LOGOUT,
+      entityType: 'Auth',
+      entityId: user.id,
+      description: 'Foydalanuvchi tizimdan chiqdi',
+      ipAddress: request?.ip,
+      userAgent: request?.headers['user-agent'] ?? null,
+    });
+
+    return { success: true };
+  }
+
+  async me(user: RequestUser) {
+    const dbUser = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        role: true,
+        organizationId: true,
+        branchId: true,
+        status: true,
+        avatarUrl: true,
+      },
+    });
+
+    if (!dbUser) {
+      throw new UnauthorizedException('User topilmadi');
+    }
+
+    return dbUser;
+  }
 }

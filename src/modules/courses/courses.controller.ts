@@ -1,80 +1,101 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
+﻿import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Request } from 'express';
+import { BaseQueryDto } from '../../common/dto/base-query.dto';
+import { ChangeStatusDto } from '../../common/dto/change-status.dto';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
+import {
+  paginatedResponse,
+  successResponse,
+} from '../../common/utils/api-response';
 import { CoursesService } from './courses.service';
-import { CourseLevel, Role } from '@prisma/client';
-import { AuthGuard } from 'src/common/guards/jwt-auth.guard';
-import { RolesGuard } from 'src/common/guards/role.guard';
-import { Roles } from 'src/common/decorators/role';
-import { CreateCourseDto } from './dto/create.course.dto';
-import { UpdateCourseDto } from './dto/update.course.dto';
+import { CreateCourseDto } from './dto/create-course.dto';
+import { UpdateCourseDto } from './dto/update-course.dto';
+
+@ApiTags('Courses')
 @ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('courses')
 export class CoursesController {
-    constructor(private readonly coursesService:CoursesService){}
-    
-        @ApiOperation({
-            summary:`${Role.SUPERADMIN} ${Role.ADMIN}`
-        })
-        @UseGuards(AuthGuard,RolesGuard)
-        @Roles(Role.SUPERADMIN,Role.ADMIN)
-        @Get("all")
-        getALlCourses(){
-            return this.coursesService.getALlCourses()
-        }
+  constructor(private readonly coursesService: CoursesService) {}
 
-        @ApiOperation({
-            summary:`${Role.SUPERADMIN} ${Role.ADMIN}`
-        })
-        @UseGuards(AuthGuard,RolesGuard)
-        @Roles(Role.SUPERADMIN,Role.ADMIN)
-        @Get("all/inactives")
-        getALlInActivesCourses(){
-            return this.coursesService.getALlInActivesCourses()
-        }
-    
-        @ApiOperation({
-            summary:`${Role.SUPERADMIN} ${Role.ADMIN}`
-        })
-        @UseGuards(AuthGuard,RolesGuard)
-        @Roles(Role.SUPERADMIN,Role.ADMIN)
-        
-        @Post("create")
-        createCourse(@Body() payload:CreateCourseDto){
-            return this.coursesService.createCourse(payload)
-        }
-        
-        @ApiOperation({
-            summary:`${Role.SUPERADMIN} ${Role.ADMIN}`
-        })
-        @UseGuards(AuthGuard,RolesGuard)
-        @Roles(Role.SUPERADMIN,Role.ADMIN)
-        @Get("one/:courseId")
-        getOneCourse(@Param("courseId",ParseIntPipe) courseId:number){
-            return this.coursesService.getOneCourse(courseId)
-        }
+  @Post()
+  @ApiOperation({ summary: 'Kurs yaratish' })
+  async create(
+    @Body() dto: CreateCourseDto,
+    @CurrentUser() user: RequestUser,
+    @Req() request: Request,
+  ) {
+    const data = await this.coursesService.createCourse(dto, user, request);
+    return successResponse('Kurs yaratildi', data);
+  }
 
+  @Get()
+  @ApiOperation({ summary: 'Kurslar royxati' })
+  async findAll(
+    @Query() query: BaseQueryDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    const result = await this.coursesService.findCourses(query, user);
+    return paginatedResponse(result.data, result.meta);
+  }
 
+  @Get(':id')
+  @ApiOperation({ summary: 'Bitta kurs' })
+  async findOne(@Param('id') id: string, @CurrentUser() user: RequestUser) {
+    const data = await this.coursesService.findCourse(id, user);
+    return successResponse('Kurs topildi', data);
+  }
 
-        @ApiOperation({
-            summary:`${Role.SUPERADMIN} ${Role.ADMIN}`
-        })
-        @UseGuards(AuthGuard,RolesGuard)
-        @Roles(Role.SUPERADMIN,Role.ADMIN)
-        @Delete("delete/:courseId")
-        deleteCourse(@Param("courseId",ParseIntPipe) courseId:number){
-            return this.coursesService.deleteCourse(courseId)
-        }
-    
-        @ApiOperation({
-            summary:`${Role.SUPERADMIN} ${Role.ADMIN}`
-        })
-        @UseGuards(AuthGuard,RolesGuard)
-        @Roles(Role.SUPERADMIN,Role.ADMIN)
-    
-        @Put("update/:courseId")
-        updateCourse(@Body() payload:UpdateCourseDto,@Param("courseId",ParseIntPipe) courseId:number){
-            return this.coursesService.updateCourse(payload,courseId)
-        }
-    
-    
+  @Patch(':id')
+  @ApiOperation({ summary: 'Kursni yangilash' })
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdateCourseDto,
+    @CurrentUser() user: RequestUser,
+    @Req() request: Request,
+  ) {
+    const data = await this.coursesService.updateCourse(id, dto, user, request);
+    return successResponse('Kurs yangilandi', data);
+  }
+
+  @Patch(':id/delete')
+  @ApiOperation({ summary: 'Kursni soft delete qilish' })
+  async softDelete(
+    @Param('id') id: string,
+    @CurrentUser() user: RequestUser,
+    @Req() request: Request,
+  ) {
+    const data = await this.coursesService.deleteCourse(id, user, request);
+    return successResponse('Kurs ochirildi', data);
+  }
+
+  @Patch(':id/status')
+  @ApiOperation({ summary: 'Kurs statusini ozgartirish' })
+  async changeStatus(
+    @Param('id') id: string,
+    @Body() dto: ChangeStatusDto,
+    @CurrentUser() user: RequestUser,
+    @Req() request: Request,
+  ) {
+    const data = await this.coursesService.changeCourseStatus(
+      id,
+      dto.status,
+      user,
+      request,
+    );
+    return successResponse('Kurs statusi ozgardi', data);
+  }
 }

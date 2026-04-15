@@ -1,147 +1,120 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation } from '@nestjs/swagger';
-import { Role } from '@prisma/client';
-import { Roles } from 'src/common/decorators/role';
-import { AuthGuard } from 'src/common/guards/jwt-auth.guard';
-import { RolesGuard } from 'src/common/guards/role.guard';
+﻿import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Request } from 'express';
+import { BaseQueryDto } from '../../common/dto/base-query.dto';
+import { ChangeStatusDto } from '../../common/dto/change-status.dto';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
+import {
+  paginatedResponse,
+  successResponse,
+} from '../../common/utils/api-response';
+import { CreateTeacherDto } from './dto/create-teacher.dto';
+import { UpdateTeacherDto } from './dto/update-teacher.dto';
 import { TeachersService } from './teachers.service';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { TeacherCreateDto } from './dto/TeacherCreateDto';
-import { UpdateTeacherDto } from './dto/UpdateTeacherDto';
 
+@ApiTags('Teachers')
 @ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('teachers')
 export class TeachersController {
-    constructor(private readonly studentsService: TeachersService) {}
-        @ApiOperation({
-            summary: `${Role.SUPERADMIN},${Role.ADMIN}`
-        })
-        @UseGuards(AuthGuard,RolesGuard)
-        @Roles(Role.SUPERADMIN,Role.ADMIN)
-        @Get("all")
-        getAllTeachers(){
-            return this.studentsService.getAllTeachers()
-        }
+  constructor(private readonly teachersService: TeachersService) {}
 
-        @ApiOperation({
-            summary: `${Role.SUPERADMIN},${Role.ADMIN}`
-        })
-        @UseGuards(AuthGuard,RolesGuard)
-        @Roles(Role.SUPERADMIN,Role.ADMIN)
-        @Get("all/inactives")
-        getAllInActiveTeachers(){
-            return this.studentsService.getAllInActiveTeachers()
-        }
-    
-    
-    
-    
-        @ApiOperation({
-            summary: `${Role.SUPERADMIN},${Role.ADMIN}`,
-            description: "Bu endpointga faqat superadmin va adminga  ruxsat bor"
-        })
-        @UseGuards(AuthGuard, RolesGuard)
-        @Roles(Role.SUPERADMIN, Role.ADMIN)
-    
-        @ApiConsumes("multipart/form-data")
-        @ApiBody({
-            schema: {
-                type: "object",
-                properties: {
-                    first_name:{type:"string"},
-                    last_name :{type:'string',example:""},
-                    password :{type:'string',example:""},     
-                    phone :{type:'string',example:""},               
-                    email :{type:'string',example:""},       
-                    address:{type:'string',example:""},
-                    photo :{type:'string', format:"binary"}
-                }
-            }
-        })
-        @UseInterceptors(FileInterceptor("photo",{
-            storage:diskStorage({
-                destination:"src/uploads",
-                filename:(req, file, cb)=>{
-                    const filename=Date.now()+"."+file.mimetype.split("/") [1] 
-                    cb(null,filename) 
-                                
-                }
-            })
-        }))
-    
-        @Post()
-        createTeacher(
-            @Body() payload: TeacherCreateDto,
-            @UploadedFile() photo: Express.Multer.File
-        ){
-            return  this.studentsService.createTeacher(payload,photo?.filename)
-        }
-    
-    
-    
-    
-    
-        @ApiOperation({
-             summary: `${Role.SUPERADMIN},${Role.ADMIN}`
-        })
-        @UseGuards(AuthGuard,RolesGuard)
-        @Roles(Role.SUPERADMIN,Role.ADMIN)
-        @Delete("delete/:id")
-        deleteTeacher(@Param("id",ParseIntPipe) id:number ){
-            return this.studentsService.deleteTeacher(id)
-        }
-    
-    
-    
-        @ApiOperation({
-             summary: `${Role.SUPERADMIN},${Role.ADMIN},${Role.TEACHER}`
-        })
-        @UseGuards(AuthGuard,RolesGuard)
-        @Roles(Role.SUPERADMIN,Role.TEACHER,Role.ADMIN)
-        @ApiConsumes("multipart/form-data")
-        @ApiBody({
-            schema:{
-                type:"object",
-                properties:{
-                    first_name: { type: 'string' },
-                    last_name: { type: 'string' },
-                    password: { type: 'string' },
-                    phone: { type: 'string' },
-                    email: { type: 'string' },
-                    address: { type: 'string' },
-                    photo: { type: 'string', format: 'binary' }
-            }
-        }
-        })
-        @UseInterceptors(FileInterceptor("photo",{
-            storage:diskStorage({
-                destination:"src/uploads",
-                filename:(req,file,cb)=>{
-                    const fileName=Date.now()+"."+file.mimetype.split("/")[1]
-                    cb(null,fileName)
-                }
-            })
-        }))
-        @Put("update/:id")
-    
-        updateTeacher(
-            @Param("id",ParseIntPipe) id:number,
-            @Body() payload:UpdateTeacherDto,
-            @UploadedFile() photo?:Express.Multer.File
-        ){
-            return this.studentsService.updateTeacher(id,payload)
-        }
+  @Post()
+  @ApiOperation({ summary: 'Oqituvchi yaratish' })
+  async create(
+    @Body() dto: CreateTeacherDto,
+    @CurrentUser() user: RequestUser,
+    @Req() request: Request,
+  ) {
+    const data = await this.teachersService.createTeacher(dto, user, request);
+    return successResponse('Oqituvchi yaratildi', data);
+  }
 
-        @ApiOperation({
-             summary: `${Role.SUPERADMIN},${Role.ADMIN},${Role.TEACHER}`
-        })
-        @UseGuards(AuthGuard,RolesGuard)
-        @Roles(Role.SUPERADMIN,Role.TEACHER,Role.ADMIN)
-        @Get("one/groups/:id")
-        getOneTeacherGroups(@Param("id" ,ParseIntPipe) id :number){
-            return this.studentsService.getOneTeacherGroups(id)
-        }
+  @Get()
+  @ApiOperation({ summary: 'Oqituvchilar royxati' })
+  async findAll(
+    @Query() query: BaseQueryDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    const result = await this.teachersService.findTeachers(query, user);
+    return paginatedResponse(result.data, result.meta);
+  }
 
-    
+  @Get('select-options')
+  @ApiOperation({ summary: 'Select optionlar' })
+  async selectOptions(
+    @CurrentUser() user: RequestUser,
+    @Query('branchId') branchId?: string,
+  ) {
+    const data = await this.teachersService.selectOptions(user, branchId);
+    return successResponse('Select optionlar', data);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Bitta oqituvchi' })
+  async findOne(@Param('id') id: string, @CurrentUser() user: RequestUser) {
+    const data = await this.teachersService.findTeacher(id, user);
+    return successResponse('Oqituvchi topildi', data);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Oqituvchini yangilash' })
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdateTeacherDto,
+    @CurrentUser() user: RequestUser,
+    @Req() request: Request,
+  ) {
+    const data = await this.teachersService.updateTeacher(
+      id,
+      dto,
+      user,
+      request,
+    );
+    return successResponse('Oqituvchi yangilandi', data);
+  }
+
+  @Patch(':id/delete')
+  @ApiOperation({ summary: 'Oqituvchini ochirish (soft delete)' })
+  async delete(
+    @Param('id') id: string,
+    @CurrentUser() user: RequestUser,
+    @Req() request: Request,
+  ) {
+    const data = await this.teachersService.softDeleteTeacher(
+      id,
+      user,
+      request,
+    );
+    return successResponse('Oqituvchi ochirildi', data);
+  }
+
+  @Patch(':id/status')
+  @ApiOperation({ summary: 'Oqituvchi statusini ozgartirish' })
+  async changeStatus(
+    @Param('id') id: string,
+    @Body() dto: ChangeStatusDto,
+    @CurrentUser() user: RequestUser,
+    @Req() request: Request,
+  ) {
+    const data = await this.teachersService.changeTeacherStatus(
+      id,
+      dto.status,
+      user,
+      request,
+    );
+    return successResponse('Status yangilandi', data);
+  }
 }

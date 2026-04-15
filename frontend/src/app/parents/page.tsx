@@ -1,0 +1,476 @@
+"use client";
+/* eslint-disable react/no-unescaped-entities */
+
+import { useEffect, useMemo, useState } from "react";
+import { Filter, LayoutGrid, List, Plus, Trash2, UserRoundPlus, Users2 } from "lucide-react";
+import { toast } from "sonner";
+import { DashboardLayout } from "@/components/layout/dashboard-layout";
+import {
+  AvatarUploadField,
+  EmptyState,
+  GradientButton,
+  ModalShell,
+  PageHero,
+  SearchToolbar,
+  StepSection,
+} from "@/components/shared";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { ApiError } from "@/lib/api/client";
+import { parentsApi, studentsApi } from "@/lib/api/services";
+import { Status } from "@/lib/types";
+import { formatDate } from "@/lib/utils-helpers";
+
+const STATUS_OPTIONS: Status[] = ["ACTIVE", "INACTIVE", "ARCHIVED", "DELETED"];
+
+type ParentRow = {
+  id: string;
+  fullName: string;
+  phone: string | null;
+  email: string | null;
+  occupation: string | null;
+  address: string | null;
+  studentCount: number;
+  status: string;
+  isActive: boolean;
+  createdAt: string | null;
+};
+
+type Option = { id: string; name: string };
+
+const EMPTY_PARENT_DRAFT = {
+  firstName: "",
+  lastName: "",
+  phone: "",
+  email: "",
+  password: "",
+  occupation: "",
+  address: "",
+  avatarUrl: "",
+  studentIds: [] as string[],
+};
+
+function toRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+function asString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function asNullableString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function asNumber(value: unknown): number {
+  return typeof value === "number" ? value : Number(value ?? 0);
+}
+
+function mapParentRow(raw: unknown): ParentRow {
+  const item = toRecord(raw);
+  const user = toRecord(item.user);
+  const countInfo = toRecord(item._count);
+  const firstName = asString(user.firstName).trim();
+  const lastName = asString(user.lastName).trim();
+  const fullName = `${firstName} ${lastName}`.trim();
+  const status = asString(item.status) || "ACTIVE";
+
+  return {
+    id: asString(item.id),
+    fullName: fullName || "Noma'lum",
+    phone: asNullableString(user.phone),
+    email: asNullableString(user.email),
+    occupation: asNullableString(item.occupation),
+    address: asNullableString(item.address),
+    studentCount: asNumber(countInfo.studentLinks ?? 0),
+    status,
+    isActive: status === "ACTIVE",
+    createdAt: asNullableString(item.createdAt),
+  };
+}
+
+export default function ParentsPage() {
+  const [parents, setParents] = useState<ParentRow[]>([]);
+  const [students, setStudents] = useState<Option[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<string>("ACTIVE");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
+  const [openCreateModal, setOpenCreateModal] = useState(false);
+  const [draft, setDraft] = useState(EMPTY_PARENT_DRAFT);
+
+  const totalCount = useMemo(() => parents.length, [parents]);
+
+  async function loadParents() {
+    try {
+      setLoading(true);
+      const response = await parentsApi.list({
+        page: 1,
+        limit: 100,
+        search: search || undefined,
+        status: status === "ALL" ? undefined : status,
+      });
+      setParents((response.data as unknown[]).map(mapParentRow));
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : "Ota-onalar yuklanmadi");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadStudents() {
+    try {
+      const response = await studentsApi.selectOptions();
+      setStudents(response.map((item) => ({ id: item.id, name: item.name })));
+    } catch {
+      setStudents([]);
+    }
+  }
+
+  useEffect(() => {
+    void loadParents();
+  }, [status]); // Automatically refetch when status changes
+
+  useEffect(() => {
+    void loadStudents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function toggleStudent(id: string) {
+    setDraft((prev) => ({
+      ...prev,
+      studentIds: prev.studentIds.includes(id)
+        ? prev.studentIds.filter((current) => current !== id)
+        : [...prev.studentIds, id],
+    }));
+  }
+
+  async function createParent() {
+    if (!draft.firstName.trim() || !draft.lastName.trim()) {
+      toast.error("Ism va familiya majburiy");
+      return;
+    }
+
+    try {
+      await parentsApi.create({
+        firstName: draft.firstName.trim(),
+        lastName: draft.lastName.trim(),
+        phone: draft.phone.trim() || undefined,
+        email: draft.email.trim() || undefined,
+        password: draft.password.trim() || undefined,
+        occupation: draft.occupation.trim() || undefined,
+        address: draft.address.trim() || undefined,
+        avatarUrl: draft.avatarUrl.trim() || undefined,
+        studentIds: draft.studentIds.length ? draft.studentIds : undefined,
+      });
+      toast.success("Yangi ota-ona yaratildi");
+      setOpenCreateModal(false);
+      setDraft(EMPTY_PARENT_DRAFT);
+      await loadParents();
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : "Yaratishda xatolik");
+    }
+  }
+
+  async function softDeleteParent(id: string) {
+    try {
+      await parentsApi.remove(id);
+      toast.success("Ota-ona o'chirildi");
+      await loadParents();
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : "Delete amalga oshmadi");
+    }
+  }
+
+  return (
+    <DashboardLayout title="Ota-onalar" description="Parent profile va o'quvchi biriktirish boshqaruvi">
+      <PageHero
+        title="Ota-onalar"
+        subtitle="Vasiy ma'lumotlarini saqlang va o'quvchilarni biriktiring"
+        icon={Users2}
+        statLabel="Jami ota-onalar"
+        statValue={totalCount}
+      />
+
+      <SearchToolbar
+        value={search}
+        onChange={setSearch}
+        onFilter={loadParents}
+        placeholder="Ota-onalarni qidiring..."
+        actions={
+          <>
+            <Select value={status} onValueChange={(value) => setStatus(value ?? "ACTIVE")}>
+              <SelectTrigger className="h-11 rounded-xl border-[#e3e8f4] bg-white">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Barcha status</SelectItem>
+                {STATUS_OPTIONS.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              className="h-11 rounded-xl border-[#e3e8f4] bg-white px-3"
+              onClick={() => setViewMode((prev) => (prev === "grid" ? "list" : "grid"))}
+            >
+              {viewMode === "grid" ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
+            </Button>
+            <GradientButton className="h-11 rounded-xl px-4" onClick={() => setOpenCreateModal(true)}>
+              <Plus className="mr-1 h-4 w-4" />
+              Ota-ona qo'shish
+            </GradientButton>
+          </>
+        }
+      />
+
+      {!parents.length ? (
+        <EmptyState
+          title="Ota-onalar topilmadi"
+          subtitle="Filterlarni tekshiring yoki yangi ota-ona qo'shing."
+          action={
+            <GradientButton className="rounded-xl px-5" onClick={() => setOpenCreateModal(true)}>
+              <UserRoundPlus className="mr-1 h-4 w-4" />
+              Ota-ona qo'shish
+            </GradientButton>
+          }
+        />
+      ) : viewMode === "grid" ? (
+        <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {parents.map((parent) => (
+            <article key={parent.id} className="panel-surface p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-base font-semibold text-[#2e3655]">{parent.fullName}</h3>
+                <Badge variant={parent.isActive ? "secondary" : "outline"}>{parent.status}</Badge>
+              </div>
+              <div className="space-y-1 text-sm text-[#5f6888]">
+                <p>Aloqa: {parent.phone ?? parent.email ?? "-"}</p>
+                <p>Kasbi: {parent.occupation ?? "-"}</p>
+                <p>O'quvchi soni: {parent.studentCount}</p>
+              </div>
+              <div className="mt-3 flex items-center justify-between border-t border-[#edf1fb] pt-3">
+                <span className="text-xs text-[#8f99b7]">{formatDate(parent.createdAt)}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-[#c7475c] hover:bg-[#fff0f3]"
+                  onClick={() => softDeleteParent(parent.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </article>
+          ))}
+        </section>
+      ) : (
+        <section className="panel-surface overflow-hidden">
+          <div className="grid grid-cols-[1.2fr_1fr_1fr_1fr_0.8fr_0.5fr] gap-3 border-b border-[#edf1fb] bg-[#f6f8fe] px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[#8f99b7]">
+            <span>Ota-ona</span>
+            <span>Aloqa</span>
+            <span>Kasbi</span>
+            <span>O'quvchi</span>
+            <span>Status</span>
+            <span className="text-right">Amallar</span>
+          </div>
+          <div className="divide-y divide-[#edf1fb]">
+            {parents.map((parent) => (
+              <div
+                key={parent.id}
+                className="grid grid-cols-[1.2fr_1fr_1fr_1fr_0.8fr_0.5fr] items-center gap-3 px-4 py-3 text-sm"
+              >
+                <div>
+                  <p className="font-semibold text-[#2f3655]">{parent.fullName}</p>
+                  <p className="text-xs text-[#8f99b7]">{formatDate(parent.createdAt)}</p>
+                </div>
+                <span className="truncate text-[#616b8e]">{parent.phone ?? parent.email ?? "-"}</span>
+                <span className="truncate text-[#616b8e]">{parent.occupation ?? "-"}</span>
+                <span className="text-[#616b8e]">{parent.studentCount}</span>
+                <Badge variant={parent.isActive ? "secondary" : "outline"}>{parent.status}</Badge>
+                <div className="flex justify-end">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-[#c7475c] hover:bg-[#fff0f3]"
+                    onClick={() => softDeleteParent(parent.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <ModalShell
+        open={openCreateModal}
+        onClose={() => setOpenCreateModal(false)}
+        title="Yangi Ota-ona"
+        subtitle="Yangi yozuv yaratish uchun ma'lumotlarni kiriting"
+      >
+        <div className="space-y-4">
+          <StepSection
+            step={1}
+            title="Ota-ona / vasiy ma'lumotlari"
+            hint="Asosiy account va profil ma'lumotlari"
+          >
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <Field label="Ism *">
+                <Input
+                  className="soft-input h-11"
+                  value={draft.firstName}
+                  onChange={(event) => setDraft((prev) => ({ ...prev, firstName: event.target.value }))}
+                  placeholder="Ism"
+                />
+              </Field>
+              <Field label="Familiya *">
+                <Input
+                  className="soft-input h-11"
+                  value={draft.lastName}
+                  onChange={(event) => setDraft((prev) => ({ ...prev, lastName: event.target.value }))}
+                  placeholder="Familiya"
+                />
+              </Field>
+              <Field label="Telefon">
+                <Input
+                  className="soft-input h-11"
+                  value={draft.phone}
+                  onChange={(event) => setDraft((prev) => ({ ...prev, phone: event.target.value }))}
+                  placeholder="+998 90 123 45 67"
+                />
+              </Field>
+              <Field label="Email">
+                <Input
+                  className="soft-input h-11"
+                  value={draft.email}
+                  onChange={(event) => setDraft((prev) => ({ ...prev, email: event.target.value }))}
+                  placeholder="parent@academy.uz"
+                />
+              </Field>
+              <Field label="Parol (ixtiyoriy)">
+                <Input
+                  className="soft-input h-11"
+                  value={draft.password}
+                  onChange={(event) => setDraft((prev) => ({ ...prev, password: event.target.value }))}
+                  placeholder="Parent123!"
+                />
+              </Field>
+              <Field label="Kasbi">
+                <Input
+                  className="soft-input h-11"
+                  value={draft.occupation}
+                  onChange={(event) => setDraft((prev) => ({ ...prev, occupation: event.target.value }))}
+                  placeholder="Muhandis"
+                />
+              </Field>
+              <Field label="Manzil" className="md:col-span-2">
+                <Textarea
+                  className="soft-input min-h-24"
+                  value={draft.address}
+                  onChange={(event) => setDraft((prev) => ({ ...prev, address: event.target.value }))}
+                  placeholder="Toshkent shahri..."
+                />
+              </Field>
+            </div>
+          </StepSection>
+
+          <StepSection step={2} title="Profil rasmi" hint="Ixtiyoriy: Cloudinary upload">
+            <AvatarUploadField
+              value={draft.avatarUrl || undefined}
+              onChange={(url) =>
+                setDraft((prev) => ({
+                  ...prev,
+                  avatarUrl: url ?? "",
+                }))
+              }
+              title="Vasiy avatarini yuklash"
+              hint="Rasm yuklangandan so'ng avtomatik avatarUrl saqlanadi"
+            />
+          </StepSection>
+
+          <StepSection
+            step={3}
+            title="O'quvchini biriktirish"
+            hint="Ixtiyoriy: hozir yoki keyinroq biriktirishingiz mumkin"
+          >
+            <MultiSelectPanel
+              options={students}
+              selected={draft.studentIds}
+              onToggle={toggleStudent}
+              emptyLabel="Biriktirish uchun aktiv o'quvchilar topilmadi"
+            />
+          </StepSection>
+
+          <GradientButton className="h-12 w-full rounded-xl text-base" onClick={createParent}>
+            Ota-ona yaratish
+          </GradientButton>
+        </div>
+      </ModalShell>
+    </DashboardLayout>
+  );
+}
+
+function Field({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <label className={className ? `space-y-1 ${className}` : "space-y-1"}>
+      <span className="text-xs font-medium text-[#7c87a9]">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function MultiSelectPanel({
+  options,
+  selected,
+  onToggle,
+  emptyLabel,
+}: {
+  options: Option[];
+  selected: string[];
+  onToggle: (id: string) => void;
+  emptyLabel: string;
+}) {
+  if (!options.length) {
+    return (
+      <div className="rounded-xl border border-[#e7ecf8] bg-[#fbfcff] px-3 py-2 text-sm text-[#8f99b7]">
+        {emptyLabel}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map((option) => {
+        const active = selected.includes(option.id);
+        return (
+          <button
+            key={option.id}
+            type="button"
+            onClick={() => onToggle(option.id)}
+            className={`rounded-xl border px-3 py-1.5 text-sm transition ${
+              active
+                ? "border-[#5b60e4] bg-[#eef0ff] text-[#3f49c8]"
+                : "border-[#dce3f5] bg-white text-[#677298] hover:border-[#b6c1e5]"
+            }`}
+          >
+            {option.name}
+          </button>
+        );
+      })}
+    </div>
+  );
+}

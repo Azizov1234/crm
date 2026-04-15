@@ -1,118 +1,362 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ActionType, Status, UserRole } from '@prisma/client';
+import type { Request } from 'express';
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
+import { AuditLogService } from '../../common/services/audit-log.service';
+import { BranchScopeService } from '../../common/services/branch-scope.service';
+import { EntityCheckService } from '../../common/services/entity-check.service';
+import { parsePagination } from '../../common/utils/query.util';
+import { PrismaService } from '../../core/prisma/prisma.service';
+import { AttendanceQueryDto } from './dto/attendance-query.dto';
+import { BulkAttendanceDto } from './dto/bulk-attendance.dto';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
-import { PrismaService } from 'src/core/database/prisma.service';
-import { Role } from '@prisma/client';
 
 @Injectable()
 export class AttendanceService {
-  constructor(private readonly prisma: PrismaService) { }
-  async createAttendance(payload: CreateAttendanceDto, currentUser: { id: number, role: string }) {
-    const lessonGroup = await this.prisma.lesson.findFirst({
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly branchScopeService: BranchScopeService,
+    private readonly entityCheckService: EntityCheckService,
+    private readonly auditLogService: AuditLogService,
+  ) {}
+
+  private normalizeDate(dateString: string) {
+    const date = new Date(dateString);
+    date.setHours(0, 0, 0, 0);
+    return date;
+  }
+
+  private resolveBranch(user: RequestUser, branchId?: string) {
+    return this.branchScopeService.ensureBranchForCreate(user, branchId);
+  }
+
+  private async ensureStudentInGroup(studentId: string, groupId: string) {
+    const link = await this.prisma.groupStudent.findFirst({
       where: {
-        id: payload.lesson_id
+        studentId,
+        groupId,
+        status: { not: Status.DELETED },
       },
-      select: {
-        created_at:true,
-        groups: {
-          select: {
-            id: true,
-            teacher_id:true,
-            start_time: true,
-            start_date: true,
-            week_day: true,
-            courses: {
-              select: {
-                duration_hours: true
-              }
-            }
-          }
-        }
-      }
-    })
-    if (!lessonGroup) {
-      throw new NotFoundException("Lesson topilmadi")
+    });
+
+    if (!link) {
+      throw new BadRequestException('Oquvchi ushbu guruhga biriktirilmagan');
     }
-    const existStudent = await this.prisma.studentGroup.findFirst({
+  }
+
+  private async findScopedAttendance(id: string, user: RequestUser) {
+    const attendance = await this.prisma.attendance.findFirst({
       where: {
-        student_id: payload.student_id,
-        group_id: lessonGroup?.groups.id,
-        status:"active"
-      }
-    })
-    if (!existStudent) throw new NotFoundException("Student is not found in a group")
-    if(lessonGroup.groups.teacher_id!==currentUser.id && currentUser.role==="TEACHER"){
-      throw new ForbiddenException("Sizda bu guruhga ruxsat yo'q")
-    }
-    const timeToMinutes = (time: string) => {
-      const [h, m] = time.split(":").map(Number)
-      return h * 60 + m
-    }
-    const week = {
-      1: "MONDAY",
-      2: "TUESDAY",
-      3: "WEDNESDAY",
-      4: "THURSDAY",
-      5: "FRIDAY",
-      6: "SATURDAY",
-      7: "SUNDAY"
+        id,
+        organizationId: user.organizationId,
+        ...(user.role === UserRole.SUPER_ADMIN
+          ? {}
+          : user.branchId
+            ? { branchId: user.branchId }
+            : {}),
+      },
+    });
+
+    if (!attendance) {
+      throw new NotFoundException('Attendance topilmadi');
     }
 
-    const week_day = lessonGroup?.groups.week_day as string[]
-    const nowDate = new Date()
-    const day = nowDate.getDay()
-    if (!week_day?.includes(week[day])) {
-      throw new BadRequestException("Dars  vaqti bugun  emas")
-    }
-    const startMinute = timeToMinutes(lessonGroup!.groups.start_time)
-    const endMinute = startMinute + lessonGroup!.groups.courses.duration_hours * 60
+    return attendance;
+  }
 
-    const nowMinute = nowDate.getHours() * 60 + nowDate.getMinutes()
+  async create(dto: CreateAttendanceDto, user: RequestUser, request?: Request) {
+    const branchId = this.resolveBranch(user, dto.branchId);
+    await this.entityCheckService.ensureBranchExists(branchId, user.organizationId, {
+      actor: user,
+    });
+    await this.entityCheckService.ensureGroupExists(dto.groupId, user.organizationId, {
+      actor: user,
+      expectedBranchId: branchId,
+    });
+    await this.entityCheckService.ensureStudentExists(
+      dto.studentId,
+      user.organizationId,
+      {
+        actor: user,
+        expectedBranchId: branchId,
+      },
+    );
+    await this.ensureStudentInGroup(dto.studentId, dto.groupId);
 
-    if(lessonGroup.created_at.getTime()<Date.now()){
-      throw new ForbiddenException("Eski davomtni qila olmaysiz")
-    }
-    if (startMinute > nowMinute) {
-      throw new BadRequestException("Dars boshlanmadi")
-    }
-    if (!(startMinute < nowMinute && endMinute > nowMinute) && currentUser.role === Role.TEACHER) {
-      throw new BadRequestException("Dars vaqtidan tashqarida davomat bo'lmaydi")
-    }
-     
+    const date = this.normalizeDate(dto.date);
 
-    const data = await this.prisma.attendance.create({
+    const data = await this.prisma.attendance.upsert({
+      where: {
+        studentId_groupId_date: {
+          studentId: dto.studentId,
+          groupId: dto.groupId,
+          date,
+        },
+      },
+      create: {
+        organizationId: user.organizationId,
+        branchId,
+        groupId: dto.groupId,
+        studentId: dto.studentId,
+        date,
+        attendanceStatus: dto.attendanceStatus,
+        note: dto.note ?? null,
+        markedById: user.id,
+      },
+      update: {
+        attendanceStatus: dto.attendanceStatus,
+        note: dto.note ?? null,
+        markedById: user.id,
+      },
+    });
+
+    await this.auditLogService.logAction({
+      organizationId: user.organizationId,
+      userId: user.id,
+      branchId: user.branchId,
+      actionType: ActionType.ATTENDANCE_MARK,
+      entityType: 'Attendance',
+      entityId: data.id,
+      description: 'Davomat belgilandi',
+      newData: data,
+      ipAddress: request?.ip,
+      userAgent: request?.headers['user-agent'] ?? null,
+    });
+
+    return data;
+  }
+
+  async bulkCreate(
+    dto: BulkAttendanceDto,
+    user: RequestUser,
+    request?: Request,
+  ) {
+    const results: unknown[] = [];
+    for (const record of dto.records) {
+      const data = await this.create(record, user, request);
+      results.push(data);
+    }
+
+    return results;
+  }
+
+  async findAll(query: AttendanceQueryDto, user: RequestUser) {
+    const { page, limit, skip, take } = parsePagination(query);
+
+    const where: Record<string, unknown> = {
+      organizationId: user.organizationId,
+      ...(user.role === UserRole.SUPER_ADMIN
+        ? query.branchId
+          ? { branchId: query.branchId }
+          : {}
+        : user.branchId
+          ? { branchId: user.branchId }
+          : {}),
+      ...(query.includeDeleted ? {} : { status: { not: Status.DELETED } }),
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.studentId ? { studentId: query.studentId } : {}),
+      ...(query.groupId ? { groupId: query.groupId } : {}),
+      ...(query.attendanceStatus
+        ? { attendanceStatus: query.attendanceStatus }
+        : {}),
+      ...(query.date ? { date: this.normalizeDate(query.date) } : {}),
+      ...(query.from || query.to
+        ? {
+            date: {
+              ...(query.from ? { gte: new Date(query.from) } : {}),
+              ...(query.to ? { lte: new Date(query.to) } : {}),
+            },
+          }
+        : {}),
+    };
+
+    const [data, total] = await Promise.all([
+      this.prisma.attendance.findMany({
+        where,
+        include: {
+          student: { include: { user: true } },
+          group: true,
+          markedBy: {
+            select: { id: true, firstName: true, lastName: true },
+          },
+        },
+        orderBy: { date: 'desc' },
+        skip,
+        take,
+      }),
+      this.prisma.attendance.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+    };
+  }
+
+  async stats(query: AttendanceQueryDto, user: RequestUser) {
+    const where: Record<string, unknown> = {
+      organizationId: user.organizationId,
+      ...(user.role === UserRole.SUPER_ADMIN
+        ? query.branchId
+          ? { branchId: query.branchId }
+          : {}
+        : user.branchId
+          ? { branchId: user.branchId }
+          : {}),
+      status: { not: Status.DELETED },
+      ...(query.groupId ? { groupId: query.groupId } : {}),
+      ...(query.studentId ? { studentId: query.studentId } : {}),
+      ...(query.from || query.to
+        ? {
+            date: {
+              ...(query.from ? { gte: new Date(query.from) } : {}),
+              ...(query.to ? { lte: new Date(query.to) } : {}),
+            },
+          }
+        : {}),
+    };
+
+    const grouped = await this.prisma.attendance.groupBy({
+      by: ['attendanceStatus'],
+      where,
+      _count: {
+        _all: true,
+      },
+    });
+
+    const total = grouped.reduce((sum, item) => sum + item._count._all, 0);
+
+    return {
+      total,
+      breakdown: grouped.map((item) => ({
+        status: item.attendanceStatus,
+        count: item._count._all,
+      })),
+    };
+  }
+
+  async byStudent(
+    studentId: string,
+    query: AttendanceQueryDto,
+    user: RequestUser,
+  ) {
+    await this.entityCheckService.ensureStudentExists(
+      studentId,
+      user.organizationId,
+      {
+        actor: user,
+        allowInactive: true,
+      },
+    );
+    return this.findAll({ ...query, studentId }, user);
+  }
+
+  async byGroup(groupId: string, query: AttendanceQueryDto, user: RequestUser) {
+    await this.entityCheckService.ensureGroupExists(groupId, user.organizationId, {
+      actor: user,
+      allowInactive: true,
+    });
+    return this.findAll({ ...query, groupId }, user);
+  }
+
+  async update(
+    id: string,
+    dto: UpdateAttendanceDto,
+    user: RequestUser,
+    request?: Request,
+  ) {
+    const existing = await this.findScopedAttendance(id, user);
+    const nextBranchId =
+      dto.branchId !== undefined
+        ? this.branchScopeService.resolveBranchId(user, dto.branchId) ??
+          existing.branchId
+        : existing.branchId;
+    const nextGroupId = dto.groupId ?? existing.groupId;
+    const nextStudentId = dto.studentId ?? existing.studentId;
+
+    await this.entityCheckService.ensureGroupExists(
+      nextGroupId,
+      user.organizationId,
+      {
+        actor: user,
+        expectedBranchId: nextBranchId,
+      },
+    );
+    await this.entityCheckService.ensureStudentExists(
+      nextStudentId,
+      user.organizationId,
+      {
+        actor: user,
+        expectedBranchId: nextBranchId,
+      },
+    );
+    await this.ensureStudentInGroup(nextStudentId, nextGroupId);
+
+    const payload: Record<string, unknown> = {
+      ...(dto.groupId ? { groupId: dto.groupId } : {}),
+      ...(dto.studentId ? { studentId: dto.studentId } : {}),
+      ...(dto.attendanceStatus
+        ? { attendanceStatus: dto.attendanceStatus }
+        : {}),
+      ...(dto.note !== undefined ? { note: dto.note } : {}),
+      ...(dto.date ? { date: this.normalizeDate(dto.date) } : {}),
+      branchId: nextBranchId,
+      markedById: user.id,
+    };
+
+    const data = await this.prisma.attendance.update({
+      where: { id },
+      data: payload,
+    });
+
+    await this.auditLogService.logAction({
+      organizationId: user.organizationId,
+      userId: user.id,
+      branchId: user.branchId,
+      actionType: ActionType.UPDATE,
+      entityType: 'Attendance',
+      entityId: id,
+      description: 'Davomat yangilandi',
+      oldData: existing,
+      newData: data,
+      ipAddress: request?.ip,
+      userAgent: request?.headers['user-agent'] ?? null,
+    });
+
+    return data;
+  }
+
+  async softDelete(id: string, user: RequestUser, request?: Request) {
+    const existing = await this.findScopedAttendance(id, user);
+
+    const data = await this.prisma.attendance.update({
+      where: { id },
       data: {
+        status: Status.DELETED,
+        deletedAt: new Date(),
+      },
+    });
 
-        ...payload,
-        teacher_id: currentUser.role === "TEACHER" ? currentUser.id : null,
-        user_id: currentUser.role !== "TEACHER" ? currentUser.id : null,
+    await this.auditLogService.logAction({
+      organizationId: user.organizationId,
+      userId: user.id,
+      branchId: user.branchId,
+      actionType: ActionType.DELETE,
+      entityType: 'Attendance',
+      entityId: id,
+      description: 'Davomat ochirildi',
+      oldData: existing,
+      newData: data,
+      ipAddress: request?.ip,
+      userAgent: request?.headers['user-agent'] ?? null,
+    });
 
-      }
-    })
-    return {
-      success: true,
-      message: "Attendance succesfully created"
-    }
-  }
-
-  async findAllAttendance() {
-    const data= await this.prisma.attendance.findMany()
-    return {
-      success:true,
-      message:"All attendance ",
-      data
-    }
-  }
-
-  findOne(id: number) {
-    return `This action returns a #${id} attendance`;
-  }
-
-  update(id: number, updateAttendanceDto: UpdateAttendanceDto) {
-    return `This action updates a #${id} attendance`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} attendance`;
+    return data;
   }
 }
